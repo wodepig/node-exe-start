@@ -5,6 +5,7 @@ import getpass
 import webbrowser
 import subprocess
 import time
+import json
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from pathlib import Path
@@ -17,17 +18,20 @@ class NodeServiceManager:
         self.root.geometry("600x500")
         self.root.resizable(True, True)
         
-        # 配置信息
-        self.DEFAULT_DIST_URL = "https://rzerwczhiyzazzmpglim.supabase.co/storage/v1/object/public/exe/dist.zip"
-        self.DEFAULT_NODE_URL = "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip"
-        self.NODE_EXECUTABLE = "node.exe"
-        self.SERVER_PORT = 3000
-        self.INDEX_JS_PATH = "dist/server/index.mjs"
-        self.TEMP_FILES = ["dist.zip", "node.zip", "node_temp"]
-        
         # 状态变量
         self.node_process = None
         self.current_dir = Path(sys.argv[0]).parent.resolve()
+        
+        # 从配置文件加载配置
+        self.config = self.load_config_from_file()
+        
+        # 设置配置变量（使用配置文件中的值，如果没有则使用默认值）
+        self.DEFAULT_DIST_URL = self.config.get("dist_url", "https://rzerwczhiyzazzmpglim.supabase.co/storage/v1/object/public/exe/dist.zip")
+        self.DEFAULT_NODE_URL = self.config.get("node_url", "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip")
+        self.NODE_EXECUTABLE = self.config.get("node_executable", "node.exe")
+        self.SERVER_PORT = self.config.get("server_port", 3000)
+        self.INDEX_JS_PATH = self.config.get("index_js_path", "dist/server/index.mjs")
+        self.TEMP_FILES = self.config.get("temp_files", ["dist.zip", "node.zip", "node_temp"])
         
         # 创建UI
         self.create_widgets()
@@ -35,8 +39,8 @@ class NodeServiceManager:
         # 初始化显示系统信息
         self.update_system_info()
         
-        # 加载保存的配置
-        self.load_config()
+        # 加载保存的配置到UI
+        self.load_config_to_ui()
 
     def create_widgets(self):
         # 创建主框架
@@ -350,6 +354,41 @@ class NodeServiceManager:
             utils.clean_temp_files(self.TEMP_FILES, self.current_dir)
             self.log("临时文件清理完成")
             messagebox.showinfo("成功", "临时文件清理完成")
+    
+    def load_config_from_file(self):
+        """从配置文件加载配置"""
+        config_path = os.path.join(self.current_dir, "config.json")
+        default_config = {
+            "project_name": "Node服务管理器",
+            "dist_url": "https://rzerwczhiyzazzmpglim.supabase.co/storage/v1/object/public/exe/dist.zip",
+            "node_url": "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip",
+            "server_port": 3000,
+            "node_executable": "node.exe",
+            "index_js_path": "dist/server/index.mjs",
+            "temp_files": ["dist.zip", "node.zip", "node_temp"]
+        }
+        
+        try:
+            if os.path.exists(config_path):
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    # 更新窗口标题
+                    if "project_name" in config:
+                        self.root.title(config["project_name"])
+                    return config
+            else:
+                # 如果配置文件不存在，创建默认配置
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    json.dump(default_config, f, ensure_ascii=False, indent=2)
+                return default_config
+        except Exception as e:
+            self.log(f"读取配置文件时出错: {str(e)}")
+            return default_config
+    
+    def load_config_to_ui(self):
+        """加载配置到UI"""
+        self.dist_url_var.set(self.config.get("dist_url", self.DEFAULT_DIST_URL))
+        self.node_url_var.set(self.config.get("node_url", self.DEFAULT_NODE_URL))
     
     def reset_buttons(self):
         """重置按钮状态"""
