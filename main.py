@@ -214,6 +214,20 @@ class NodeServiceManager:
         self.check_update_btn.config(state=tk.DISABLED)
         
         try:
+            # 检查端口是否被占用，如果被占用则杀掉对应进程
+            if utils.is_port_in_use(self.SERVER_PORT):
+                self.log(f"端口{self.SERVER_PORT}被占用，正在清理...")
+                killed_processes = utils.kill_process_by_port(self.SERVER_PORT)
+                if killed_processes:
+                    for process_info in killed_processes:
+                        self.log(f"已终止进程: {process_info}")
+                    self.log(f"端口{self.SERVER_PORT}清理完成")
+                else:
+                    self.log(f"无法清理端口{self.SERVER_PORT}的占用进程")
+                    messagebox.showerror("错误", f"端口{self.SERVER_PORT}被占用且无法清理")
+                    self.reset_buttons()
+                    return
+            
             # 查找node可执行文件
             node_dir = os.path.join(self.current_dir, "node")
             node_path = utils.find_node_executable(node_dir)
@@ -241,18 +255,25 @@ class NodeServiceManager:
                 cwd=self.current_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,  # 将stderr重定向到stdout
-                text=True
+                text=True,
+                bufsize=1,  # 行缓冲
+                universal_newlines=True
             )
             
-            # 启动线程读取输出
-            self.root.after(100, self.read_process_output)
+            # 启动线程来读取输出（避免阻塞Tkinter主循环）
+            import threading
+            self.output_thread = threading.Thread(target=self.read_process_output_thread, daemon=True)
+            self.output_thread.start()
             
             # 等待服务启动
             self.log(f"等待服务在端口{self.SERVER_PORT}启动...")
             if utils.wait_for_server(self.SERVER_PORT):
                 self.log(f"服务已在端口{self.SERVER_PORT}启动")
                 self.open_browser_btn.config(state=tk.NORMAL)
-                messagebox.showinfo("成功", f"服务已在端口{self.SERVER_PORT}启动")
+                # 使用after方法延迟显示消息框，避免阻塞主线程
+                self.root.after(100, lambda: messagebox.showinfo("成功", f"服务已在端口{self.SERVER_PORT}启动"))
+                # 服务启动成功后，继续在后台运行，不要阻塞主线程
+                self.log("服务正在后台运行中...")
             else:
                 self.log(f"超时: 服务在30秒内未启动")
                 messagebox.showerror("错误", f"超时: 服务在30秒内未启动")
@@ -262,28 +283,19 @@ class NodeServiceManager:
             self.log(f"启动服务时出错: {str(e)}")
             messagebox.showerror("错误", f"启动服务时出错: {str(e)}")
             self.reset_buttons()
-    
-    def read_process_output(self):
-        """读取进程输出并显示到日志"""
-        if self.node_process is None:
-            return
-            
-        if self.node_process.poll() is not None:
-            # 进程已退出
-            self.log(f"服务已停止，退出代码: {self.node_process.returncode}")
-            self.reset_buttons()
-            return
-            
-        # 读取输出
-        try:
-            output = self.node_process.stdout.readline()
-            if output:
-                self.log(output.strip())
-        except Exception as e:
-            self.log(f"读取输出时出错: {str(e)}")
-            
-        # 继续检查
-        self.root.after(100, self.read_process_output)
+
+    def read_process_output_thread(self):
+        """在单独线程中读取进程输出"""
+        while self.node_process is not None and self.node_process.poll() is None:
+            try:
+                output = self.node_process.stdout.readline()
+                if output:
+                    # 使用线程安全的方式更新UI
+                    self.root.after(0, lambda: self.log(output.strip()))
+            except Exception as e:
+                if "I/O operation on closed file" not in str(e):
+                    self.root.after(0, lambda: self.log(f"读取输出时出错: {str(e)}"))
+                break
     
     def stop_service(self):
         """停止Node服务"""
