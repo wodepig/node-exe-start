@@ -213,6 +213,39 @@ class NodeServiceManager:
             messagebox.showinfo("提示", "服务已经在运行中")
             return
             
+        # 固定检查/node/node.exe是否存在
+        node_exe_path = os.path.join(self.current_dir, "node", "node.exe")
+        if not os.path.exists(node_exe_path):
+            self.log("程序不存在，需要先检查更新")
+            if messagebox.askyesno("提示", "程序不存在，是否立即检查更新？"):
+                # 调用检查更新功能
+                self.check_update()
+                # 检查更新完成后，如果node.exe存在了，则继续启动服务
+                if os.path.exists(node_exe_path):
+                    self.log("更新完成，继续启动服务")
+                    # 延迟一下，等待UI更新
+                    self.root.after(1000, self._start_service_after_check)
+                else:
+                    self.log("更新后程序仍然不存在，请手动检查更新")
+                    self.reset_buttons()
+            else:
+                self.reset_buttons()
+            return
+        else:
+            # 如果node.exe存在，直接启动服务
+            self._start_service()
+    
+    def _start_service_after_check(self):
+        """检查更新后启动服务"""
+        node_exe_path = os.path.join(self.current_dir, "node", "node.exe")
+        if os.path.exists(node_exe_path):
+            self._start_service()
+        else:
+            self.log("更新后node.exe仍然不存在，无法启动服务")
+            self.reset_buttons()
+    
+    def _start_service(self):
+        """实际启动服务的逻辑"""
         # 禁用启动按钮，启用停止按钮
         self.start_btn.config(state=tk.DISABLED)
         self.stop_btn.config(state=tk.NORMAL)
@@ -233,13 +266,12 @@ class NodeServiceManager:
                     self.reset_buttons()
                     return
             
-            # 查找node可执行文件
-            node_dir = os.path.join(self.current_dir, "node")
-            node_path = utils.find_node_executable(node_dir)
+            # 使用固定的node.exe路径
+            node_path = os.path.join(self.current_dir, "node", "node.exe")
             
-            if not node_path or not os.path.exists(node_path):
-                self.log(f"找不到{self.NODE_EXECUTABLE}")
-                messagebox.showerror("错误", f"找不到{self.NODE_EXECUTABLE}，请先检查更新")
+            if not os.path.exists(node_path):
+                self.log(f"找不到{node_path}")
+                messagebox.showerror("错误", f"找不到Node可执行文件，请先检查更新")
                 self.reset_buttons()
                 return
             

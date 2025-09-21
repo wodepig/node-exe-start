@@ -1,6 +1,6 @@
 {
   "project_name": "Node服务管理器",
-  "dist_url": "1https://rzerwczhiyzazzmpglim.supabase.co/storage/v1/object/public/exe/dist.zip",
+  "dist_url": "https://rzerwczhiyzazzmpglim.supabase.co/storage/v1/object/public/exe/dist.zip",
   "node_url": "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip",
   "server_port": 3000,
   "node_executable": "node.exe",
