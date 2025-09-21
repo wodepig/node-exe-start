@@ -4,6 +4,7 @@ import platform
 import getpass
 import webbrowser
 import subprocess
+import time
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from pathlib import Path
