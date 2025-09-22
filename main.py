@@ -47,9 +47,13 @@ class NodeServiceManager:
         main_frame = ttk.Frame(self.root, padding="20")
         main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # 系统信息区域
-        info_frame = ttk.LabelFrame(main_frame, text="系统信息", padding="10")
-        info_frame.pack(fill=tk.X, pady=(0, 15))
+        # 创建左右分栏的容器
+        top_frame = ttk.Frame(main_frame)
+        top_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        # 左侧：系统信息区域
+        info_frame = ttk.LabelFrame(top_frame, text="系统信息", padding="10")
+        info_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
         
         self.os_version_var = tk.StringVar()
         self.architecture_var = tk.StringVar()
@@ -63,6 +67,25 @@ class NodeServiceManager:
         
         ttk.Label(info_frame, text="用户名:").grid(row=2, column=0, sticky=tk.W, pady=2)
         ttk.Label(info_frame, textvariable=self.username_var).grid(row=2, column=1, sticky=tk.W, pady=2)
+        
+        # 右侧：程序配置区域
+        app_config_frame = ttk.LabelFrame(top_frame, text="程序配置", padding="10")
+        app_config_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(10, 0))
+        
+        # 程序版本号（固定，不可修改）
+        ttk.Label(app_config_frame, text="程序版本:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        self.version_var = tk.StringVar(value="v1.0.0")
+        version_entry = ttk.Entry(app_config_frame, textvariable=self.version_var, width=15, state="readonly")
+        version_entry.grid(row=0, column=1, sticky=tk.W, pady=2)
+        
+        # 服务端口号（可修改）
+        ttk.Label(app_config_frame, text="服务端口:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        self.server_port_var = tk.StringVar(value=str(self.SERVER_PORT))
+        self.server_port_entry = ttk.Entry(app_config_frame, textvariable=self.server_port_var, width=15)
+        self.server_port_entry.grid(row=1, column=1, sticky=tk.W, pady=2)
+        
+        # 端口号修改事件绑定（焦点离开后校验）
+        self.server_port_entry.bind("<FocusOut>", self._on_port_focus_out)
         
         # 配置区域
         config_frame = ttk.LabelFrame(main_frame, text="更新配置", padding="10")
@@ -110,6 +133,40 @@ class NodeServiceManager:
         scrollbar = ttk.Scrollbar(log_frame, command=self.log_text.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.log_text.config(yscrollcommand=scrollbar.set)
+
+    def _on_port_focus_out(self, event):
+        """端口号焦点离开事件处理"""
+        try:
+            port = int(self.server_port_var.get())
+            if 1024 <= port <= 65535:
+                self.SERVER_PORT = port
+                self.log(f"端口号已修改为: {port}")
+                # 更新配置文件
+                self._save_port_to_config()
+            else:
+                messagebox.showerror("错误", "端口号必须在1024-65535之间")
+                self.server_port_var.set(str(self.SERVER_PORT))
+        except ValueError:
+            messagebox.showerror("错误", "请输入有效的端口号")
+            self.server_port_var.set(str(self.SERVER_PORT))
+    
+    def _save_port_to_config(self):
+        """保存端口号到配置文件"""
+        try:
+            config_path = os.path.join(self.current_dir, "config.json")
+            if os.path.exists(config_path):
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = {}
+            
+            config["server_port"] = self.SERVER_PORT
+            
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=4, ensure_ascii=False)
+                
+        except Exception as e:
+            self.log(f"保存端口配置失败: {str(e)}")
 
     def update_system_info(self):
         """更新系统信息显示"""
@@ -287,6 +344,10 @@ class NodeServiceManager:
             
             # 启动Node服务
             self.log("正在启动Node服务...")
+            # 设置端口环境变量，让Node应用能够读取
+            env = os.environ.copy()
+            env["PORT"] = str(self.SERVER_PORT)
+            
             self.node_process = subprocess.Popen(
                 [node_path, self.INDEX_JS_PATH],
                 cwd=self.current_dir,
@@ -294,7 +355,8 @@ class NodeServiceManager:
                 stderr=subprocess.STDOUT,  # 将stderr重定向到stdout
                 text=True,
                 bufsize=1,  # 行缓冲
-                universal_newlines=True
+                universal_newlines=True,
+                env=env  # 传递环境变量
             )
             
             # 启动线程来读取输出（避免阻塞Tkinter主循环）
