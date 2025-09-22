@@ -55,7 +55,7 @@ def wait_for_server(port, timeout=30):
     
     return False
 
-def download_file_with_progress(url, save_path):
+def download_file_with_progress(url, save_path, progress_callback=None, progress_update_callback=None):
     """带进度条的文件下载"""
     try:
         response = requests.get(url, stream=True)
@@ -63,21 +63,32 @@ def download_file_with_progress(url, save_path):
         
         total_size = int(response.headers.get('content-length', 0))
         block_size = 1024  # 1KB
+        downloaded_size = 0
         
-        with open(save_path, 'wb') as file, tqdm(
-            desc=os.path.basename(save_path),
-            total=total_size,
-            unit='iB',
-            unit_scale=True,
-            unit_divisor=1024,
-        ) as progress_bar:
+        if progress_callback:
+            progress_callback(f"开始下载: {os.path.basename(save_path)}")
+            progress_callback(f"文件大小: {total_size / (1024*1024):.2f} MB")
+        
+        with open(save_path, 'wb') as file:
             for chunk in response.iter_content(chunk_size=block_size):
-                size = file.write(chunk)
-                progress_bar.update(size)
+                if chunk:
+                    size = file.write(chunk)
+                    downloaded_size += size
+                    
+                    if total_size > 0:
+                        progress = (downloaded_size / total_size) * 100
+                        if progress_update_callback:
+                            progress_update_callback(progress, downloaded_size, total_size)
+        
+        if progress_callback:
+            progress_callback(f"下载完成: {os.path.basename(save_path)}")
+        if progress_update_callback:
+            progress_update_callback(100, total_size, total_size)
         
         return True
     except Exception as e:
-        print(f"下载失败: {str(e)}")
+        if progress_callback:
+            progress_callback(f"下载失败: {str(e)}")
         return False
 
 def unzip_file(zip_path, extract_dir):

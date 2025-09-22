@@ -108,6 +108,17 @@ class NodeServiceManager:
         self.open_browser_btn = ttk.Button(button_frame, text="打开浏览器", command=self.open_browser, state=tk.DISABLED)
         self.open_browser_btn.pack(side=tk.LEFT, padx=5)
         
+        # 进度条区域（初始隐藏）
+        self.progress_frame = ttk.Frame(parent_frame)
+        
+        ttk.Label(self.progress_frame, text="下载进度:").pack(side=tk.LEFT, padx=(0, 5))
+        self.progress_var = tk.DoubleVar()
+        self.progress_bar = ttk.Progressbar(self.progress_frame, variable=self.progress_var, maximum=100, length=300)
+        self.progress_bar.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        
+        self.progress_label = ttk.Label(self.progress_frame, text="0%")
+        self.progress_label.pack(side=tk.RIGHT)
+        
         # 日志区域
         log_frame = ttk.LabelFrame(parent_frame, text="操作日志", padding="10")
         log_frame.pack(fill=tk.BOTH, expand=True)
@@ -307,12 +318,35 @@ class NodeServiceManager:
         self.log_text.config(state=tk.DISABLED)
         self.root.update_idletasks()  # 刷新UI
     
+    def update_progress(self, progress, downloaded, total):
+        """更新进度条显示"""
+        # 使用线程安全的方式更新UI
+        self.root.after(0, lambda: self._safe_update_progress(progress, downloaded, total))
+    
+    def _safe_update_progress(self, progress, downloaded, total):
+        """线程安全的进度条更新"""
+        self.progress_var.set(progress)
+        self.progress_label.config(text=f"{progress:.1f}%")
+        self.root.update_idletasks()  # 刷新UI
+    
     def check_update(self):
         """检查并下载更新"""
         # 禁用按钮防止重复操作
         self.check_update_btn.config(state=tk.DISABLED)
         self.log("开始检查更新...")
         
+        # 显示进度条
+        self.progress_frame.pack(fill=tk.X, pady=(0, 10))
+        self.progress_var.set(0)
+        self.progress_label.config(text="0%")
+        
+        # 使用线程执行下载任务，避免GUI卡顿
+        import threading
+        download_thread = threading.Thread(target=self._download_files_thread, daemon=True)
+        download_thread.start()
+    
+    def _download_files_thread(self):
+        """在单独线程中下载文件"""
         # 定义文件路径
         dist_zip_path = os.path.join(self.current_dir, "dist.zip")
         node_zip_path = os.path.join(self.current_dir, "node.zip")
@@ -321,60 +355,81 @@ class NodeServiceManager:
         dist_dir = os.path.join(self.current_dir, "dist")
         
         try:
-            # 下载dist.zip
-            self.log("开始下载dist.zip...")
-            if not utils.download_file_with_progress(self.dist_url_var.get(), dist_zip_path):
-                self.log("dist.zip下载失败")
-                self.check_update_btn.config(state=tk.NORMAL)
+            # 总是下载dist.zip（不检查是否存在）
+            self.root.after(0, lambda: self.log("开始下载dist.zip..."))
+            if not utils.download_file_with_progress(self.dist_url_var.get(), dist_zip_path, 
+                                                   lambda msg: self.root.after(0, lambda: self.log(msg)), 
+                                                   self.update_progress):
+                self.root.after(0, lambda: self.log("dist.zip下载失败"))
+                self.root.after(0, lambda: self._finish_download(False))
                 return
             
-            # 下载node.zip
-            self.log("开始下载node.zip...")
-            if not utils.download_file_with_progress(self.node_url_var.get(), node_zip_path):
-                self.log("node.zip下载失败")
-                self.check_update_btn.config(state=tk.NORMAL)
-                return
+            # 重置进度条准备下一个下载
+            self.root.after(0, lambda: self.progress_var.set(0))
+            self.root.after(0, lambda: self.progress_label.config(text="0%"))
             
-            # 解压dist.zip到dist目录
-            self.log("开始解压dist.zip...")
+            # 检查并下载node.zip（如果不存在）
+            if not os.path.exists(node_zip_path):
+                self.root.after(0, lambda: self.log("开始下载node.zip..."))
+                if not utils.download_file_with_progress(self.node_url_var.get(), node_zip_path, 
+                                                       lambda msg: self.root.after(0, lambda: self.log(msg)), 
+                                                       self.update_progress):
+                    self.root.after(0, lambda: self.log("node.zip下载失败"))
+                    self.root.after(0, lambda: self._finish_download(False))
+                    return
+            else:
+                self.root.after(0, lambda: self.log("node.zip已存在，跳过下载"))
+            
+            # 总是解压dist.zip到dist目录（不检查是否存在）
+            self.root.after(0, lambda: self.log("开始解压dist.zip..."))
             if not utils.unzip_file(dist_zip_path, dist_dir):
-                self.log("dist.zip解压失败")
-                self.check_update_btn.config(state=tk.NORMAL)
+                self.root.after(0, lambda: self.log("dist.zip解压失败"))
+                self.root.after(0, lambda: self._finish_download(False))
                 return
             
-            # 解压并处理node.zip
+            # 解压并处理node.zip（如果不存在）
             if not os.path.exists(node_dir):
                 # 先解压到临时目录
-                self.log("开始解压node.zip...")
+                self.root.after(0, lambda: self.log("开始解压node.zip..."))
                 if not utils.unzip_file(node_zip_path, node_temp_dir):
-                    self.log("node.zip解压失败")
-                    self.check_update_btn.config(state=tk.NORMAL)
+                    self.root.after(0, lambda: self.log("node.zip解压失败"))
+                    self.root.after(0, lambda: self._finish_download(False))
                     return
                 
                 # 自动检测node版本目录
                 node_version_dir = utils.detect_node_version_dir(node_temp_dir)
                 if not node_version_dir:
-                    self.log("无法识别node版本目录")
-                    self.check_update_btn.config(state=tk.NORMAL)
+                    self.root.after(0, lambda: self.log("无法识别node版本目录"))
+                    self.root.after(0, lambda: self._finish_download(False))
                     return
                 
                 # 将版本目录中的内容移动到最终的node目录
-                self.log("正在整理Node文件...")
+                self.root.after(0, lambda: self.log("正在整理Node文件..."))
                 if not utils.move_node_contents(node_temp_dir, node_dir, node_version_dir):
-                    self.log("无法处理node文件")
-                    self.check_update_btn.config(state=tk.NORMAL)
+                    self.root.after(0, lambda: self.log("无法处理node文件"))
+                    self.root.after(0, lambda: self._finish_download(False))
                     return
             else:
-                self.log("Node目录已存在，跳过处理")
+                self.root.after(0, lambda: self.log("Node目录已存在，跳过处理"))
             
-            self.log("更新检查完成")
-            messagebox.showinfo("成功", "更新检查完成，可以启动服务了")
+            self.root.after(0, lambda: self.log("更新检查完成"))
+            self.root.after(0, lambda: self._finish_download(True))
             
         except Exception as e:
-            self.log(f"更新过程出错: {str(e)}")
-            messagebox.showerror("错误", f"更新过程出错: {str(e)}")
-        finally:
-            self.check_update_btn.config(state=tk.NORMAL)
+            self.root.after(0, lambda: self.log(f"更新过程出错: {str(e)}"))
+            self.root.after(0, lambda: self._finish_download(False))
+    
+    def _finish_download(self, success):
+        """下载完成后的处理"""
+        # 隐藏进度条
+        self.progress_frame.pack_forget()
+        
+        # 启用按钮
+        self.check_update_btn.config(state=tk.NORMAL)
+        
+        if success:
+            # 显示成功消息
+            self.root.after(100, lambda: messagebox.showinfo("成功", "更新检查完成，可以启动服务了"))
     
     def start_service(self):
         """启动Node服务"""
