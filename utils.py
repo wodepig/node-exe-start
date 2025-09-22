@@ -94,17 +94,31 @@ def download_file_with_progress(url, save_path, progress_callback=None, progress
 def unzip_file(zip_path, extract_dir):
     """解压zip文件到指定目录"""
     try:
+        # 检查zip文件是否存在
+        if not os.path.exists(zip_path):
+            print(f"解压失败: zip文件不存在 - {zip_path}")
+            return False
+            
+        # 检查zip文件是否有效
+        if not zipfile.is_zipfile(zip_path):
+            print(f"解压失败: 不是有效的zip文件 - {zip_path}")
+            return False
+        
         # 创建解压目录（如果不存在）
         os.makedirs(extract_dir, exist_ok=True)
         
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            # 测试zip文件是否损坏
+            test_result = zip_ref.testzip()
+            if test_result is not None:
+                print(f"解压失败: zip文件损坏 - {test_result}")
+                return False
+            
             # 获取压缩包中的文件列表
             file_list = zip_ref.namelist()
-            # 创建进度条
-            with tqdm(total=len(file_list), desc=f"解压 {os.path.basename(zip_path)}") as pbar:
-                for file in file_list:
-                    zip_ref.extract(file, extract_dir)
-                    pbar.update(1)
+            # 直接解压所有文件，不使用tqdm进度条
+            for file in file_list:
+                zip_ref.extract(file, extract_dir)
         
         return True
     except Exception as e:
@@ -149,24 +163,22 @@ def move_node_contents(temp_dir, target_dir, version_dir):
         # 创建目标目录
         os.makedirs(target_dir, exist_ok=True)
         
-        # 获取所有项目并创建进度条
+        # 获取所有项目
         items = os.listdir(version_path)
-        with tqdm(total=len(items), desc="整理Node文件") as pbar:
-            # 移动版本目录中的所有内容到目标目录
-            for item in items:
-                source = os.path.join(version_path, item)
-                destination = os.path.join(target_dir, item)
-                
-                # 如果目标已存在则先删除
-                if os.path.exists(destination):
-                    if os.path.isdir(destination):
-                        shutil.rmtree(destination)
-                    else:
-                        os.remove(destination)
-                
-                # 移动文件或目录
-                shutil.move(source, destination)
-                pbar.update(1)
+        # 移动版本目录中的所有内容到目标目录
+        for item in items:
+            source = os.path.join(version_path, item)
+            destination = os.path.join(target_dir, item)
+            
+            # 如果目标已存在则先删除
+            if os.path.exists(destination):
+                if os.path.isdir(destination):
+                    shutil.rmtree(destination)
+                else:
+                    os.remove(destination)
+            
+            # 移动文件或目录
+            shutil.move(source, destination)
         
         # 删除临时解压目录
         shutil.rmtree(temp_dir)

@@ -657,9 +657,36 @@ class NodeServiceManager:
         self.stop_btn.config(state=tk.DISABLED)
         self.check_update_btn.config(state=tk.NORMAL)
         self.open_browser_btn.config(state=tk.DISABLED)
+    
+    def on_closing(self):
+        """程序关闭时的清理操作"""
+        # 停止Node服务
+        if self.node_process is not None and self.node_process.poll() is None:
+            self.log("程序关闭，正在停止Node服务...")
+            try:
+                self.node_process.terminate()
+                # 等待一段时间让进程正常退出
+                timeout = 3
+                start_time = time.time()
+                while self.node_process.poll() is None and time.time() - start_time < timeout:
+                    time.sleep(0.1)
+                
+                # 如果进程还在运行，强制终止
+                if self.node_process.poll() is None:
+                    self.node_process.kill()
+                    self.log("Node服务已强制终止")
+                else:
+                    self.log("Node服务已正常停止")
+            except Exception as e:
+                self.log(f"停止Node服务时出错: {str(e)}")
+        
+        # 关闭主窗口
+        self.root.destroy()
 
 if __name__ == "__main__":
     root = tk.Tk()
     app = NodeServiceManager(root)
+    # 设置关闭事件处理
+    root.protocol("WM_DELETE_WINDOW", app.on_closing)
     root.mainloop()
     
