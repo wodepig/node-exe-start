@@ -1,8 +1,14 @@
 {
     "project_name": "Node服务管理器",
+    "system_info": {
+        "os": "Windows 10",
+        "arch": "64bit",
+        "username": "16864",
+        "detected_at": "2025-09-22 10:16:49"
+    },
     "dist_url": "https://rzerwczhiyzazzmpglim.supabase.co/storage/v1/object/public/exe/dist.zip",
     "node_url": "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip",
-    "server_port": 3333,
+    "server_port": 3000,
     "node_executable": "node.exe",
     "index_js_path": "dist/server/index.mjs",
     "temp_files": [
@@ -11,5 +17,17 @@
         "node_temp",
         "node",
         "dist"
-    ]
+    ],
+    "node_version": {
+        "win7-32bit": "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip",
+        "win7-64bit": "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip",
+        "win8-32bit": "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip",
+        "win8-64bit": "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip",
+        "win8.1-32bit": "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip",
+        "win8.1-64bit": "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip",
+        "win10-32bit": "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip",
+        "win10-64bit": "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip",
+        "win11-32bit": "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v22.19.5-win-x64.zip",
+        "win11-64bit": "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v22.19.5-win-x64.zip"
+    }
 }

@@ -27,11 +27,16 @@ class NodeServiceManager:
         
         # 设置配置变量（使用配置文件中的值，如果没有则使用默认值）
         self.DEFAULT_DIST_URL = self.config.get("dist_url", "https://rzerwczhiyzazzmpglim.supabase.co/storage/v1/object/public/exe/dist.zip")
-        self.DEFAULT_NODE_URL = self.config.get("node_url", "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip")
         self.NODE_EXECUTABLE = self.config.get("node_executable", "node.exe")
         self.SERVER_PORT = self.config.get("server_port", 3000)
         self.INDEX_JS_PATH = self.config.get("index_js_path", "dist/server/index.mjs")
         self.TEMP_FILES = self.config.get("temp_files", ["dist.zip", "node.zip", "node_temp"])
+        
+        # 根据系统信息自动选择node下载地址
+        self.DEFAULT_NODE_URL = self._get_node_url_by_system()
+        
+        # 保存系统信息到配置文件
+        self._save_system_info_to_config()
         
         # 创建UI
         self.create_widgets()
@@ -96,10 +101,8 @@ class NodeServiceManager:
         self.dist_url_entry = ttk.Entry(config_frame, textvariable=self.dist_url_var, width=50)
         self.dist_url_entry.grid(row=0, column=1, sticky=tk.W, pady=5)
         
-        ttk.Label(config_frame, text="node下载地址:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        # node下载地址现在根据系统信息自动选择，不再显示在UI中
         self.node_url_var = tk.StringVar()
-        self.node_url_entry = ttk.Entry(config_frame, textvariable=self.node_url_var, width=50)
-        self.node_url_entry.grid(row=1, column=1, sticky=tk.W, pady=5)
         
         # 按钮区域
         button_frame = ttk.Frame(main_frame)
@@ -149,6 +152,81 @@ class NodeServiceManager:
         except ValueError:
             messagebox.showerror("错误", "请输入有效的端口号")
             self.server_port_var.set(str(self.SERVER_PORT))
+    
+    def _get_node_url_by_system(self):
+        """根据系统信息选择对应的node下载地址"""
+        
+        # 构建系统标识符
+        system_key = self.get_windows_version()
+        
+        # 从配置文件中获取node版本映射
+        node_versions = self.config.get("node_version", {})
+        
+        # 选择对应的下载地址，如果没有匹配的则使用默认值
+        default_url = "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip"
+        node_url = node_versions.get(system_key, default_url)
+        
+        # 在UI创建前不能使用log方法，直接打印到控制台
+        print(f"系统标识: {system_key}, 选择Node下载地址: {node_url}")
+        return node_url
+    def get_windows_version(self):
+        system_key = "win10-64bit"
+        arch = platform.architecture()[0]
+        # 检查是否为Windows系统
+        if platform.system().lower() != 'windows':
+            # 非Windows系统暂不支持
+            print(f"警告: 检测到 {os_name} 系统，当前版本仅支持Windows系统")
+            messagebox.showwarning("系统支持", f"检测到 {os_name} 系统，当前版本仅支持Windows系统")
+            return system_key
+        
+        # 获取系统版本信息
+        version = sys.getwindowsversion()
+        major = version.major
+        minor = version.minor
+        build = version.build
+        
+        # 根据版本号判断具体系统
+        if major == 6:
+            if minor == 1:
+                system_key = f"win7-{arch}"
+            elif minor == 2:
+                system_key = f"win8-{arch}"
+            elif minor == 3:
+                system_key = f"win8.1-{arch}"
+        elif major == 10:
+            if build < 22000:
+                system_key = f"win10-{arch}"
+            else:
+                system_key = f"win11-{arch}"
+        else:
+            print(f"警告: {os_name} 系统不被支持")
+            messagebox.showwarning("系统支持", f"检测到 {os_name} 系统不被支持")
+            return system_key
+        return system_key
+    def _save_system_info_to_config(self):
+        """保存系统信息到配置文件"""
+        try:
+            config_path = os.path.join(self.current_dir, "config.json")
+            if os.path.exists(config_path):
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = {}
+            
+            # 更新系统信息
+            if "system_info" not in config:
+                config["system_info"] = {}
+            
+            config["system_info"]["os"] = platform.system() + " " + platform.release()
+            config["system_info"]["arch"] = platform.architecture()[0]
+            config["system_info"]["username"] = getpass.getuser()
+            config["system_info"]["detected_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=4, ensure_ascii=False)
+                
+        except Exception as e:
+            self.log(f"保存系统信息失败: {str(e)}")
     
     def _save_port_to_config(self):
         """保存端口号到配置文件"""
