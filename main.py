@@ -14,7 +14,7 @@ import utils  # 导入工具函数
 class NodeServiceManager:
     def __init__(self, root):
         self.root = root
-        self.root.title("Node服务管理器")
+        self.root.title("程序启动器")
         self.root.geometry("600x500")
         self.root.resizable(True, True)
         
@@ -33,6 +33,7 @@ class NodeServiceManager:
         self.SERVER_PORT = self.config.get("server_port", 3000)
         self.INDEX_JS_PATH = self.config.get("index_js_path", "dist/server/index.mjs")
         self.TEMP_FILES = self.config.get("temp_files", ["dist.zip", "node.zip", "node_temp"])
+        self.DIST_NAME = self.config.get("dist_name", "dist.zip")
         
         # 延迟执行系统信息相关操作，避免阻塞UI初始化
         self.root.after(100, self._delayed_system_init)
@@ -61,7 +62,7 @@ class NodeServiceManager:
     def create_widgets(self):
         """创建UI组件 - 简化版本"""
         # 主窗口设置
-        self.root.title("Node服务管理器")
+        self.root.title("程序启动器")
         self.root.geometry("800x600")
         self.root.minsize(800, 600)
         
@@ -348,7 +349,7 @@ class NodeServiceManager:
     def _download_files_thread(self):
         """在单独线程中下载文件"""
         # 定义文件路径
-        dist_zip_path = os.path.join(self.current_dir, "dist.zip")
+        dist_zip_path = os.path.join(self.current_dir, self.DIST_NAME)
         node_zip_path = os.path.join(self.current_dir, "node.zip")
         node_dir = os.path.join(self.current_dir, "node")
         node_temp_dir = os.path.join(self.current_dir, "node_temp")
@@ -356,11 +357,11 @@ class NodeServiceManager:
         
         try:
             # 总是下载dist.zip（不检查是否存在）
-            self.root.after(0, lambda: self.log("开始下载dist.zip..."))
+            self.root.after(0, lambda: self.log(f"开始下载{self.DIST_NAME}..."))
             if not utils.download_file_with_progress(self.dist_url_var.get(), dist_zip_path, 
                                                    lambda msg: self.root.after(0, lambda: self.log(msg)), 
                                                    self.update_progress):
-                self.root.after(0, lambda: self.log("dist.zip下载失败"))
+                self.root.after(0, lambda: self.log(f"{self.DIST_NAME}下载失败"))
                 self.root.after(0, lambda: self._finish_download(False))
                 return
             
@@ -381,9 +382,9 @@ class NodeServiceManager:
                 self.root.after(0, lambda: self.log("node.zip已存在，跳过下载"))
             
             # 总是解压dist.zip到dist目录（不检查是否存在）
-            self.root.after(0, lambda: self.log("开始解压dist.zip..."))
+            self.root.after(0, lambda: self.log(f"开始解压{self.DIST_NAME}..."))
             if not utils.unzip_file(dist_zip_path, dist_dir):
-                self.root.after(0, lambda: self.log("dist.zip解压失败"))
+                self.root.after(0, lambda: self.log(f"{self.DIST_NAME}解压失败"))
                 self.root.after(0, lambda: self._finish_download(False))
                 return
             
@@ -515,6 +516,13 @@ class NodeServiceManager:
             env = os.environ.copy()
             env["PORT"] = str(self.SERVER_PORT)
             
+            # 在Windows上隐藏控制台窗口
+            startupinfo = None
+            if os.name == 'nt':  # Windows系统
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = 0  # SW_HIDE
+            
             self.node_process = subprocess.Popen(
                 [node_path, self.INDEX_JS_PATH],
                 cwd=self.current_dir,
@@ -523,7 +531,8 @@ class NodeServiceManager:
                 text=True,
                 bufsize=1,  # 行缓冲
                 universal_newlines=True,
-                env=env  # 传递环境变量
+                env=env,  # 传递环境变量
+                startupinfo=startupinfo  # 隐藏控制台窗口
             )
             
             # 启动线程来读取输出（避免阻塞Tkinter主循环）
@@ -620,13 +629,13 @@ class NodeServiceManager:
         """从配置文件加载配置"""
         config_path = os.path.join(self.current_dir, "config.json")
         default_config = {
-            "project_name": "Node服务管理器",
-            "dist_url": "https://rzerwczhiyzazzmpglim.supabase.co/storage/v1/object/public/exe/dist.zip",
+            "project_name": "程序启动器",
+            "dist_url": "",
             "node_url": "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip",
             "server_port": 3000,
             "node_executable": "node.exe",
             "index_js_path": "dist/server/index.mjs",
-            "temp_files": ["dist.zip", "node.zip", "node_temp"]
+            "temp_files": ["dist.zip",".output.zip", "node.zip", "node_temp"]
         }
         
         try:

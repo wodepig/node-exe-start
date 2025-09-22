@@ -1,18 +1,20 @@
 {
-    "project_name": "Node服务管理器",
+    "project_name": "程序启动器",
     "system_info": {
         "os": "Windows 10",
         "arch": "64bit",
         "username": "16864",
-        "detected_at": "2025-09-22 14:26:11"
+        "detected_at": "2025-09-22 14:44:05"
     },
-    "dist_url": "https://rzerwczhiyzazzmpglim.supabase.co/storage/v1/object/public/exe/dist.zip",
+    "dist_url": "https://supabase.devitem.top/storage/v1/object/public/exe-test//.output.zip",
     "node_url": "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip",
     "server_port": 3000,
     "node_executable": "node.exe",
     "index_js_path": "dist/server/index.mjs",
+    "dist_name": ".output.zip",
     "temp_files": [
         "dist.zip",
+        ".output.zip",
         "node.zip",
         "node_temp",
         "node",
