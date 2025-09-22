@@ -28,7 +28,7 @@ class NodeServiceManager:
         self.config = self.load_config_from_file()
         
         # 设置配置变量（使用配置文件中的值，如果没有则使用默认值）
-        self.DEFAULT_DIST_URL = self.config.get("dist_url", "https://rzerwczhiyzazzmpglim.supabase.co/storage/v1/object/public/exe/dist.zip")
+        self.DEFAULT_DIST_URL = self.config.get("dist_url", "")
         self.NODE_EXECUTABLE = self.config.get("node_executable", "node.exe")
         self.SERVER_PORT = self.config.get("server_port", 3000)
         self.INDEX_JS_PATH = self.config.get("index_js_path", "dist/server/index.mjs")

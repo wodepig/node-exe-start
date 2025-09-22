@@ -6,7 +6,7 @@
         "username": "16864",
         "detected_at": "2025-09-22 14:44:05"
     },
-    "dist_url": "https://supabase.devitem.top/storage/v1/object/public/exe-test//.output.zip",
+    "dist_url": "",
     "node_url": "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip",
     "server_port": 3000,
     "node_executable": "node.exe",
