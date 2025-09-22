@@ -22,6 +22,8 @@ class NodeServiceManager:
         self.node_process = None
         self.current_dir = Path(sys.argv[0]).parent.resolve()
         
+
+        
         # 从配置文件加载配置
         self.config = self.load_config_from_file()
         
@@ -32,45 +34,117 @@ class NodeServiceManager:
         self.INDEX_JS_PATH = self.config.get("index_js_path", "dist/server/index.mjs")
         self.TEMP_FILES = self.config.get("temp_files", ["dist.zip", "node.zip", "node_temp"])
         
+        # 延迟执行系统信息相关操作，避免阻塞UI初始化
+        self.root.after(100, self._delayed_system_init)
+        
+        # 初始化时使用默认值，延迟加载实际值
+        self.DEFAULT_NODE_URL = "https://cdn.npmmirror.com/binaries/node/v20.19.5/node-v20.19.5-win-x64.zip"
+        
+        # 创建UI
+        self.create_widgets()
+    
+    def _delayed_system_init(self):
+        """延迟执行系统信息初始化，避免阻塞UI显示"""
         # 根据系统信息自动选择node下载地址
         self.DEFAULT_NODE_URL = self._get_node_url_by_system()
         
         # 保存系统信息到配置文件
         self._save_system_info_to_config()
         
-        # 创建UI
-        self.create_widgets()
-        
-        # 初始化显示系统信息
-        self.update_system_info()
+        # 只有在系统信息UI组件已经创建时才更新显示
+        if hasattr(self, 'os_version_var'):
+            self.update_system_info()
         
         # 加载保存的配置到UI
         self.load_config_to_ui()
 
     def create_widgets(self):
-        # 创建主框架
-        main_frame = ttk.Frame(self.root, padding="20")
+        """创建UI组件 - 简化版本"""
+        # 主窗口设置
+        self.root.title("Node服务管理器")
+        self.root.geometry("800x600")
+        self.root.minsize(800, 600)
+        
+        # 主框架
+        main_frame = ttk.Frame(self.root, padding="10")
         main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # 创建左右分栏的容器
-        top_frame = ttk.Frame(main_frame)
+        # 先创建核心功能区域，延迟创建信息区域
+        self._create_core_ui(main_frame)
+        
+        # 延迟创建系统信息区域
+        self.root.after(500, lambda: self._create_system_info_ui(main_frame))
+    
+    def _create_core_ui(self, parent_frame):
+        """创建核心UI组件"""
+        # 配置区域
+        config_frame = ttk.LabelFrame(parent_frame, text="更新配置", padding="10")
+        config_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        ttk.Label(config_frame, text="dist下载地址:").grid(row=0, column=0, sticky=tk.W, pady=5)
+        self.dist_url_var = tk.StringVar()
+        self.dist_url_entry = ttk.Entry(config_frame, textvariable=self.dist_url_var, width=50)
+        self.dist_url_entry.grid(row=0, column=1, sticky=tk.W, pady=5)
+        
+        # node下载地址现在根据系统信息自动选择，不再显示在UI中
+        self.node_url_var = tk.StringVar()
+        
+        # 按钮区域
+        button_frame = ttk.Frame(parent_frame)
+        button_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        self.check_update_btn = ttk.Button(button_frame, text="检查更新", command=self.check_update)
+        self.check_update_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.start_btn = ttk.Button(button_frame, text="启动服务", command=self.start_service)
+        self.start_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.stop_btn = ttk.Button(button_frame, text="停止服务", command=self.stop_service, state=tk.DISABLED)
+        self.stop_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.clean_btn = ttk.Button(button_frame, text="清理临时文件", command=self.clean_temp_files)
+        self.clean_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.open_browser_btn = ttk.Button(button_frame, text="打开浏览器", command=self.open_browser, state=tk.DISABLED)
+        self.open_browser_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 日志区域
+        log_frame = ttk.LabelFrame(parent_frame, text="操作日志", padding="10")
+        log_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 日志文本框
+        self.log_text = tk.Text(log_frame, height=10, wrap=tk.WORD)
+        self.log_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.log_text.config(state=tk.DISABLED)
+        
+        # 滚动条
+        scrollbar = ttk.Scrollbar(log_frame, command=self.log_text.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.log_text.config(yscrollcommand=scrollbar.set)
+        
+        # 加载配置到UI
+        self.load_config_to_ui()
+    
+    def _create_system_info_ui(self, parent_frame):
+        """延迟创建系统信息UI组件"""
+        # 顶部信息区域
+        top_frame = ttk.Frame(parent_frame)
         top_frame.pack(fill=tk.X, pady=(0, 15))
         
         # 左侧：系统信息区域
         info_frame = ttk.LabelFrame(top_frame, text="系统信息", padding="10")
-        info_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
-        
-        self.os_version_var = tk.StringVar()
-        self.architecture_var = tk.StringVar()
-        self.username_var = tk.StringVar()
+        info_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
         ttk.Label(info_frame, text="操作系统:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        self.os_version_var = tk.StringVar()
         ttk.Label(info_frame, textvariable=self.os_version_var).grid(row=0, column=1, sticky=tk.W, pady=2)
         
-        ttk.Label(info_frame, text="架构:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        ttk.Label(info_frame, text="系统架构:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        self.architecture_var = tk.StringVar()
         ttk.Label(info_frame, textvariable=self.architecture_var).grid(row=1, column=1, sticky=tk.W, pady=2)
         
         ttk.Label(info_frame, text="用户名:").grid(row=2, column=0, sticky=tk.W, pady=2)
+        self.username_var = tk.StringVar()
         ttk.Label(info_frame, textvariable=self.username_var).grid(row=2, column=1, sticky=tk.W, pady=2)
         
         # 右侧：程序配置区域
@@ -92,50 +166,8 @@ class NodeServiceManager:
         # 端口号修改事件绑定（焦点离开后校验）
         self.server_port_entry.bind("<FocusOut>", self._on_port_focus_out)
         
-        # 配置区域
-        config_frame = ttk.LabelFrame(main_frame, text="更新配置", padding="10")
-        config_frame.pack(fill=tk.X, pady=(0, 15))
-        
-        ttk.Label(config_frame, text="dist下载地址:").grid(row=0, column=0, sticky=tk.W, pady=5)
-        self.dist_url_var = tk.StringVar()
-        self.dist_url_entry = ttk.Entry(config_frame, textvariable=self.dist_url_var, width=50)
-        self.dist_url_entry.grid(row=0, column=1, sticky=tk.W, pady=5)
-        
-        # node下载地址现在根据系统信息自动选择，不再显示在UI中
-        self.node_url_var = tk.StringVar()
-        
-        # 按钮区域
-        button_frame = ttk.Frame(main_frame)
-        button_frame.pack(fill=tk.X, pady=(0, 15))
-        
-        self.check_update_btn = ttk.Button(button_frame, text="检查更新", command=self.check_update)
-        self.check_update_btn.pack(side=tk.LEFT, padx=5)
-        
-        self.start_btn = ttk.Button(button_frame, text="启动服务", command=self.start_service)
-        self.start_btn.pack(side=tk.LEFT, padx=5)
-        
-        self.stop_btn = ttk.Button(button_frame, text="停止服务", command=self.stop_service, state=tk.DISABLED)
-        self.stop_btn.pack(side=tk.LEFT, padx=5)
-        
-        self.clean_btn = ttk.Button(button_frame, text="清理临时文件", command=self.clean_temp_files)
-        self.clean_btn.pack(side=tk.LEFT, padx=5)
-        
-        self.open_browser_btn = ttk.Button(button_frame, text="打开浏览器", command=self.open_browser, state=tk.DISABLED)
-        self.open_browser_btn.pack(side=tk.LEFT, padx=5)
-        
-        # 日志区域
-        log_frame = ttk.LabelFrame(main_frame, text="操作日志", padding="10")
-        log_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # 日志文本框
-        self.log_text = tk.Text(log_frame, height=10, wrap=tk.WORD)
-        self.log_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.log_text.config(state=tk.DISABLED)
-        
-        # 滚动条
-        scrollbar = ttk.Scrollbar(log_frame, command=self.log_text.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.log_text.config(yscrollcommand=scrollbar.set)
+        # 更新系统信息显示
+        self.update_system_info()
 
     def _on_port_focus_out(self, event):
         """端口号焦点离开事件处理"""
@@ -172,11 +204,13 @@ class NodeServiceManager:
     def get_windows_version(self):
         system_key = "win10-64bit"
         arch = platform.architecture()[0]
+        os_name = platform.system()
         # 检查是否为Windows系统
-        if platform.system().lower() != 'windows':
-            # 非Windows系统暂不支持
+        if os_name.lower() != 'windows':
+            # 非Windows系统暂不支持，但不在初始化阶段显示弹窗，避免阻塞
             print(f"警告: 检测到 {os_name} 系统，当前版本仅支持Windows系统")
-            messagebox.showwarning("系统支持", f"检测到 {os_name} 系统，当前版本仅支持Windows系统")
+            # 延迟显示警告到UI创建完成后
+            self.root.after(1000, lambda: messagebox.showwarning("系统支持", f"检测到 {os_name} 系统，当前版本仅支持Windows系统"))
             return system_key
         
         # 获取系统版本信息
