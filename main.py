@@ -529,6 +529,7 @@ class NodeServiceManager:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,  # 将stderr重定向到stdout
                 text=True,
+                encoding="utf-8",  # 确保正确处理中文输出
                 bufsize=1,  # 行缓冲
                 universal_newlines=True,
                 env=env,  # 传递环境变量
